@@ -1,7 +1,3 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-
-export default defineConfig({
-  plugins: [react()],
-  base: '/dudung-ghost/',
-})
+export default {
+  base: '/Trick-or-treat/',   // ★ 리포 이름과 동일 (대소문자/하이픈 포함)
+};

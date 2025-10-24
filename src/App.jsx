@@ -1,38 +1,32 @@
 import React, { useEffect, useRef, useState } from "react";
 
 /**
- * 🎃 Dudung Ghost Catch — 390×844 Dark Mode (stable)
- * - 루프 스케줄: useEffect([screen])만 담당
- * - 타이머/스코어 실시간 갱신: 상태 업데이트 직후 draw()
- * - 스플래시/엔딩/PNG 저장
+ * 🎃 Dudung Ghost Catch — 390×844 Dark Mode (stable, responsive fixed)
  */
 
-// ===== 사용자 이미지 URL (비워두면 내장 SVG 사용) =====
 const USER_SPLASH_URL  = "./splash.png";
 const USER_DUDUNG_URL  = "./dudung.png";
 const USER_PUMPKIN_URL = "./pumpkin.png";
 const USER_GHOST_URL   = "./ghost.png";
 
-// ===== 설정 =====
 const CANVAS_W = 390;
 const CANVAS_H = 844;
-const GAME_MS = 15_000; // 15초
+const GAME_MS = 15_000;
 
 const GHOST_SPAWN_MS = 400;
 const PUMPKIN_SPAWN_MS = 600;
-const GHOST_SPEED = 0.8;      // px/ms
+const GHOST_SPEED = 0.8;
 const PUMPKIN_SPEED = GHOST_SPEED * 0.6;
 const ENTITY_RADIUS = 26;
 const HIT_RADIUS = 34;
 const DUDUNG_RADIUS = 60;
 
-// ===== 유틸 & 기본 이미지 =====
 const clamp = (v,min,max)=>Math.min(max,Math.max(min,v));
 const dist = (x1,y1,x2,y2)=>Math.hypot(x1-x2,y1-y2);
 const makeDataUrl = (svg)=>`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 
 function randSpawnEdge(){
-  const edge = Math.floor(Math.random()*4); // 0:top 1:right 2:bottom 3:left
+  const edge = Math.floor(Math.random()*4);
   const m = 30;
   switch(edge){
     case 0: return { x: Math.random()*CANVAS_W, y: -m };
@@ -85,39 +79,36 @@ const DEF_PUMPKIN = makeDataUrl(`
 export default function GhostCatch(){
   const canvasRef = useRef(null);
 
-  // 상태
+  // 화면/스코어/타임
   const [screen, setScreen] = useState('splash'); // 'splash' | 'playing' | 'ended'
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(GAME_MS);
 
-  // 최신 화면 상태 ref (루프/핸들러에서 최신값 보장)
+  // 최신값 ref
   const screenRef = useRef('splash');
   const scoreRef = useRef(0);
   const timeLeftRef = useRef(GAME_MS);
-  useEffect(() => {
-    screenRef.current = screen;
-    draw(); // 전환 프레임 잔상 제거
-  }, [screen]);
+  useEffect(() => { screenRef.current = screen; draw(); }, [screen]);
 
-  // 이미지 레퍼런스
+  // 이미지
   const splashImgRef = useRef(null);
   const dudungImgRef = useRef(null);
   const pumpkinImgRef = useRef(null);
-  const ghostImgRef = useRef(null); // 이미지 유령 사용 시
+  const ghostImgRef = useRef(null);
 
-  // 런타임 컨테이너
+  // 런타임
   const rafRef = useRef(null);
   const startRef = useRef(0);
   const lastGhostRef = useRef(0);
   const lastPumpkinRef = useRef(0);
-  const entitiesRef = useRef([]); // {kind:'ghost'|'pumpkin', x,y,vx,vy,born}
+  const entitiesRef = useRef([]);
 
   // 버튼 히트영역
   const splashBtnRectRef = useRef({x:0,y:0,w:0,h:0});
   const endRetryRectRef = useRef({x:0,y:0,w:0,h:0});
   const endSaveRectRef  = useRef({x:0,y:0,w:0,h:0});
 
-  // 캔버스 픽셀/스타일 크기 고정
+  // 캔버스 픽셀 고정
   useEffect(()=>{
     const c = canvasRef.current; if(!c) return;
     c.style.width = CANVAS_W+"px"; c.style.height = CANVAS_H+"px";
@@ -133,7 +124,7 @@ export default function GhostCatch(){
     draw();
   })(); },[]);
 
-  // 입력: 탭 처리
+  // 입력
   useEffect(()=>{
     const c = canvasRef.current; if(!c) return;
     const onDown = (e)=>{
@@ -148,13 +139,10 @@ export default function GhostCatch(){
         const inButton = (x>=r.x && x<=r.x+r.w && y>=r.y && y<=r.y+r.h);
         if (inButton){
           setScore(0); setTimeLeft(GAME_MS); entitiesRef.current = [];
-          startRef.current = performance.now();
-          lastGhostRef.current = startRef.current; lastPumpkinRef.current = startRef.current;
-          scoreRef.current = 0;
-          timeLeftRef.current = GAME_MS;
-          screenRef.current='playing';      // 즉시 참조값 갱신
-          setScreen('playing');             // 상태 전환 (루프는 useEffect가 시작)
-          draw();                           // 스플래시 흔적 제거
+          const t0 = performance.now();
+          startRef.current = t0; lastGhostRef.current = t0; lastPumpkinRef.current = t0;
+          scoreRef.current = 0; timeLeftRef.current = GAME_MS;
+          screenRef.current='playing'; setScreen('playing'); draw();
         }
         return;
       }
@@ -163,10 +151,10 @@ export default function GhostCatch(){
         for (let i=entitiesRef.current.length-1; i>=0; i--){
           const en = entitiesRef.current[i];
           if (dist(x,y,en.x,en.y) <= HIT_RADIUS){
-	    if (en.kind==='ghost') { scoreRef.current += 1; setScore(s=>s+1); }
-	    else { scoreRef.current -= 3; setScore(s=>s-3); }
+            if (en.kind==='ghost') { scoreRef.current += 1; setScore(s=>s+1); }
+            else { scoreRef.current -= 3; setScore(s=>s-3); }
             entitiesRef.current.splice(i,1);
-            draw(); // ✅ 점수 반영 직후 바로 그리기
+            draw();
             break;
           }
         }
@@ -183,7 +171,6 @@ export default function GhostCatch(){
     return ()=> c.removeEventListener('pointerdown', onDown);
   }, []);
 
-  // 유령(벡터) 렌더
   function drawGhostVector(ctx){
     const bodyW=30, bodyH=38;
     const gg=ctx.createLinearGradient(0,-bodyH,0,bodyH);
@@ -195,23 +182,19 @@ export default function GhostCatch(){
     ctx.fillStyle='#111'; ctx.beginPath(); ctx.arc(-7,-14,3,0,Math.PI*2); ctx.arc(7,-14,3,0,Math.PI*2); ctx.fill();
   }
 
-  // 그리기
   const draw = ()=>{
     const c = canvasRef.current; if(!c) return; const ctx = c.getContext('2d'); if(!ctx) return;
     ctx.clearRect(0,0,c.width,c.height);
 
-    // 배경
     const splash = splashImgRef.current;
     if (splash) ctx.drawImage(splash, 0,0, c.width,c.height); else {
       const g = ctx.createLinearGradient(0,0,0,c.height); g.addColorStop(0,'#0b1220'); g.addColorStop(1,'#0e1626');
       ctx.fillStyle = g; ctx.fillRect(0,0,c.width,c.height);
     }
 
-    // 중앙 두둥이
     const dud = dudungImgRef.current; const cx = c.width/2, cy = c.height/2;
     if (dud) ctx.drawImage(dud, cx-60, cy-60, 120, 120);
 
-    // 엔티티
     entitiesRef.current.forEach(en=>{
       ctx.save(); ctx.translate(en.x, en.y);
       if (en.kind==='ghost'){
@@ -232,7 +215,6 @@ export default function GhostCatch(){
       ctx.restore();
     });
 
-    // HUD
     if (screenRef.current==='playing'){
       ctx.fillStyle = '#ffffff';
       ctx.strokeStyle = 'rgba(0,0,0,0.55)';
@@ -245,7 +227,6 @@ export default function GhostCatch(){
       ctx.fillText(`SCORE ${scoreRef.current}`, 16, 56);
     }
 
-    // 스플래시
     if (screenRef.current==='splash'){
       ctx.save();
       ctx.fillStyle='rgba(0,0,0,0.38)'; ctx.fillRect(0,0,c.width,c.height);
@@ -260,7 +241,6 @@ export default function GhostCatch(){
       ctx.restore();
     }
 
-    // 종료
     if (screenRef.current==='ended'){
       ctx.save();
       ctx.fillStyle='rgba(0,0,0,0.6)'; ctx.fillRect(0,0,c.width,c.height);
@@ -279,17 +259,15 @@ export default function GhostCatch(){
     }
   };
 
-  // 메인 루프(한 프레임) — 스케줄링은 useEffect에서만 관리
   const loop = () => {
     if (screenRef.current !== 'playing') return;
 
     const now = performance.now();
     const elapsed = now - startRef.current;
     const remain = Math.max(0, GAME_MS - elapsed);
-    timeLeftRef.current = remain; // ✅ 즉시 값
-    setTimeLeft(remain);          // 상태도 유지(엔딩 등 로직용)
+    timeLeftRef.current = remain;
+    setTimeLeft(remain);
 
-    // 스폰(난이도 점진)
     const t = elapsed / GAME_MS;
     const ghostInterval = Math.max(260, GHOST_SPAWN_MS - 300*t);
     const pumpkinInterval = Math.max(900, PUMPKIN_SPAWN_MS - 200*t);
@@ -305,31 +283,24 @@ export default function GhostCatch(){
       entitiesRef.current.push({ kind:'pumpkin', x:p.x, y:p.y, vx:Math.cos(angle)*PUMPKIN_SPEED, vy:Math.sin(angle)*PUMPKIN_SPEED, born: now });
     }
 
-    // 이동/충돌
     const cx = CANVAS_W/2, cy = CANVAS_H/2;
     const next = [];
     for (const en of entitiesRef.current){
       en.x += en.vx; en.y += en.vy;
 
-      // 중앙 두둥이 충돌 → 즉시 종료
       if (en.kind==='ghost' && dist(en.x,en.y,cx,cy) <= DUDUNG_RADIUS){
         screenRef.current = 'ended';
         setScreen('ended');
-        draw(); // 즉시 반영
+        draw();
         return;
       }
-
-      // 중앙 지나가는 엔티티는 버리기(겹침 방지)
       if (dist(en.x,en.y,cx,cy) < ENTITY_RADIUS + 20) continue;
-
       next.push(en);
     }
     entitiesRef.current = next;
 
-    // ✅ 상태 업데이트 후 즉시 그리기(타임/스코어 실시간 반영)
     draw();
 
-    // 시간 종료
     if (remain <= 0){
       screenRef.current = 'ended';
       setScreen('ended');
@@ -337,10 +308,8 @@ export default function GhostCatch(){
     }
   };
 
-  // ✅ screen 상태에 따라 게임 루프 자동 관리 (유일한 스케줄러)
   useEffect(() => {
     if (screenRef.current === 'playing') {
-      // 시작 시각/스폰 타이머 초기화
       startRef.current = performance.now();
       lastGhostRef.current = startRef.current;
       lastPumpkinRef.current = startRef.current;
@@ -348,25 +317,18 @@ export default function GhostCatch(){
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       const tick = () => {
         if (screenRef.current !== 'playing') return;
-        loop(); // 한 프레임 처리
-        rafRef.current = requestAnimationFrame(tick); // 다음 프레임 예약
+        loop();
+        rafRef.current = requestAnimationFrame(tick);
       };
       rafRef.current = requestAnimationFrame(tick);
     } else {
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
     }
     return () => {
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
     };
   }, [screen]);
 
-  // 저장
   const saveImage = ()=>{
     const c = canvasRef.current; if(!c) return;
     try{
@@ -375,7 +337,6 @@ export default function GhostCatch(){
     }catch{ alert('이미지 저장이 차단되었어요.'); }
   };
 
-  // 다시하기
   const restart = ()=>{
     screenRef.current='splash';
     scoreRef.current = 0;
@@ -385,15 +346,92 @@ export default function GhostCatch(){
     draw();
   };
 
-  // 상태 변경 시 리렌더(보조)
-  useEffect(()=>{ draw(); }, [score, timeLeft]);
+  // ✅ Responsive Fit (contain) — 단일 이펙트
+  useEffect(() => {
+    const inner = document.getElementById("game-inner");
+    if (!inner) return;
 
+    inner.style.transformOrigin = "0 0";
+
+    const getViewport = () => {
+      const vv = window.visualViewport;
+      return { vw: vv?.width ?? window.innerWidth, vh: vv?.height ?? window.innerHeight };
+    };
+
+    const readEnv = (name) => {
+      try {
+        // 일부 브라우저는 env 값이 공백일 수 있음
+        const v = getComputedStyle(document.documentElement).getPropertyValue(`env(${name})`) || "0";
+        const n = parseFloat(v);
+        return Number.isFinite(n) ? n : 0;
+      } catch { return 0; }
+    };
+
+    const fit = () => {
+      const { vw, vh } = getViewport();
+
+      // CSS.supports 체크 (있을 때만 env 사용 시도)
+      let safeTop = 0, safeBottom = 0;
+      if (window.CSS && typeof window.CSS.supports === "function") {
+        if (CSS.supports("top: env(safe-area-inset-top)")) safeTop = readEnv("safe-area-inset-top");
+        if (CSS.supports("bottom: env(safe-area-inset-bottom)")) safeBottom = readEnv("safe-area-inset-bottom");
+      }
+
+      const usableH = vh - safeTop - safeBottom;
+      const scale = Math.min(vw / CANVAS_W, usableH / CANVAS_H);
+
+      const dx = Math.round((vw - CANVAS_W * scale) / 2);
+      const dy = Math.round((usableH - CANVAS_H * scale) / 2 + safeTop);
+
+      inner.style.transform = `translate(${dx}px, ${dy}px) scale(${scale})`;
+    };
+
+    fit();
+
+    const onResize = () => fit();
+    window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
+
+    const vv = window.visualViewport;
+    if (vv) {
+      vv.addEventListener("resize", onResize);
+      vv.addEventListener("scroll", onResize);
+    }
+
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+      if (vv) {
+        vv.removeEventListener("resize", onResize);
+        vv.removeEventListener("scroll", onResize);
+      }
+    };
+  }, []);
+
+  // === JSX 출력 (컨테이너 + #game-inner 추가) ===
   return (
-    <div className="min-h-screen flex flex-col items-center justify-start bg-[#0b1220] text-white p-3">
-      <div className="w-[390px]">
-        <div className="relative">
-          <canvas ref={canvasRef} width={CANVAS_W} height={CANVAS_H} className="rounded-2xl border border-white/10 bg-black"/>
-        </div>
+    <div
+      id="game-root"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "#0b1220",
+        overflow: "hidden",
+        touchAction: "none"
+      }}
+    >
+      <div
+        id="game-inner"
+        style={{
+          width: CANVAS_W,
+          height: CANVAS_H,
+          position: "absolute",
+          left: 0,
+          top: 0,
+          willChange: "transform"
+        }}
+      >
+        <canvas ref={canvasRef} />
       </div>
     </div>
   );
